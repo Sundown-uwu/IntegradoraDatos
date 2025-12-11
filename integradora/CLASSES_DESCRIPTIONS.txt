@@ -1,0 +1,114 @@
+Resumen de clases y responsabilidades (proyecto Integradora)
+
+Ruta base: src/main/java/com/example/demo/service/integradora
+
+1) Aplicación
+- IntegradoraApplication.java
+  - Punto de entrada Spring Boot; configura y arranca la aplicación.
+
+2) Model (src/.../model)
+- Book.java
+  - Representa un libro: `id`, `title`, `author`, `active`, `availableCopies` y `waitlist`.
+  - `waitlist` es una `CustomQueue<Integer>` (IDs de usuario). Anotado con `@JsonIgnore`.
+- Loan.java
+  - Representa un préstamo: `id`, `userId`, `bookId`, `active` (true = prestado).
+- HistoryAction.java
+  - Registro de acciones del sistema para historial/undo.
+  - Campos: `type` (enum con CREATE_LOAN, ADD_TO_WAITLIST, RETURN, AUTO_CREATE_LOAN), `userId`, `bookId`, `loanId`.
+- User.java
+  - Representa un usuario simple: `id`, `name`, `active`.
+
+3) DTOs (src/.../dto)
+- CustomRequest.java
+  - DTO simple usado por `SortController` (campo: `data` como String).
+- ErrorResponse.java
+  - DTO para respuestas de error: `error` y `detail`.
+- LoanRequest.java
+  - DTO para crear préstamos: `userId`, `bookId`.
+- ReturnRequest.java
+  - DTO para petición de devolución (si se usara): `loanId`.
+
+4) Estructuras propias (src/.../structures)
+- Node.java
+  - Nodo genérico para `MySinglyLinkedList` con `data` y `next`.
+- MySinglyLinkedList.java
+  - Lista simplemente enlazada propia usada como almacenamiento en memoria para colecciones del proyecto.
+  - Métodos: `add`, `getHead`, `getSize`.
+- CustomQueue<T>.java
+  - Cola circular basada en array (capacidad fija).
+  - Métodos: `offer`, `poll`, `peek`, `isEmpty`, `size`, `positionOf`, `remove`, `toArray`.
+  - Usada como `waitlist` por cada `Book`.
+- CustomStack<T>.java
+  - Pila basada en array (capacidad fija).
+  - Métodos: `push`, `pop`, `peek`, `isEmpty`, `size`, `toArray`.
+  - Usada para el historial/UNDO.
+
+5) Servicios (src/.../service)
+- BookService.java
+  - Gestión del catálogo en memoria (lista enlazada): registrar, actualizar, baja lógica, buscar por id.
+  - Inicializa `availableCopies` y `waitlist` para nuevos libros.
+- LoanService.java
+  - Lógica de préstamos y reservas central:
+    * `requestLoan(userId, bookId)` — crea préstamo si hay copias; si no, agrega a `waitlist` y registra `HistoryAction`.
+    * `returnLoan(loanId)` — marca préstamo devuelto; si hay `waitlist`, crea préstamo automático para el primer usuario; si no, incrementa `availableCopies`.
+    * `getReservationList(bookId)` — devuelve arreglo de IDs en la cola de espera.
+    * `getActiveLoans()` — retorna préstamos activos.
+    * `getLoansByUser(userId)` — préstamos de un usuario.
+    * `undoLastAction()` — pop en la pila `history` y revierte acciones según tipo (CREATE_LOAN/AUTO_CREATE_LOAN, ADD_TO_WAITLIST, RETURN).
+    * `getHistory()` — expone el contenido de la pila de historial.
+  - Almacena préstamos en `MySinglyLinkedList<Loan>` y mantiene contador de IDs.
+- SortService.java
+  - Servicio simple de ordenamiento (selection sort) usado por `SortController`.
+- UserService.java
+  - Gestión simple de usuarios en memoria (`MySinglyLinkedList<User>`).
+  - `createUser` valida nombre obligatorio y unicidad (case-insensitive), `getAllUsers`, `findUserById`.
+
+6) Controladores (src/.../controller)
+- BookController.java
+  - Endpoints para libros:
+    * `POST /api/books` — registrar libro.
+    * `GET /api/books` — listar catálogo activo.
+    * `GET /api/books/{id}` — obtener libro por id (404 con `ErrorResponse` si no existe).
+    * `PUT /api/books/{id}` — actualizar libro.
+    * `DELETE /api/books/{id}` — baja lógica.
+- LoanController.java
+  - Endpoints para préstamos y reservas (implementados de forma simple):
+    * `POST /api/loans` — crear préstamo (usa `LoanRequest`).
+    * `POST /api/loans/{loanId}/return` — devolver préstamo por path param.
+    * `GET /api/loans/active` — listar préstamos activos.
+    * `GET /api/loans/user/{userId}` — listar préstamos de un usuario.
+    * (Se eliminaron endpoints `/request`, `/position`, `/cancel-reservation`, `/return` con body y `/loans/history/undo` según solicitudes previas.)
+- SortController.java
+  - Endpoint para ordenar un string de números separados por comas; valida entrada y llama a `SortService`.
+- GeneralErrorHandlerController.java
+  - `@RestControllerAdvice` global que captura excepciones y devuelve `ErrorResponse` con detalle del error.
+- UserController.java
+  - Endpoints usuarios:
+    * `POST /api/users` — crear usuario (nombre obligatorio y único).
+    * `GET /api/users` — listar usuarios.
+    * `GET /api/users/{id}` — obtener usuario por id.
+- HistoryController.java
+  - Endpoints de historial:
+    * `GET /api/history` — devuelve historial (array de `HistoryAction`).
+    * `POST /api/history/undo` — deshace la última acción (invoca `LoanService.undoLastAction()`).
+
+7) Tests
+- IntegradoraApplicationTests.java (src/test)
+  - Clase de pruebas generada por Spring Boot (actualmente no contiene pruebas activas en este proyecto).
+
+Notas generales
+- Persistencia: el proyecto usa estructuras en memoria propias (listas, colas, pilas). No hay base de datos.
+- Serialización JSON: algunos campos complejos (por ejemplo `waitlist`) están anotados con `@JsonIgnore` para evitar que Jackson intente deserializarlos directamente.
+- Diseño: el código prioriza claridad y uso de estructuras hechas a medida (sin usar colecciones java convencionales) como solicitaste.
+
+Cómo explorar el código
+- Revisa los controladores en `src/main/java/.../controller` para ver los endpoints expuestos.
+- Revisa la lógica en `LoanService` y `BookService` para entender reglas de negocio (préstamo, devolución, waitlist).
+- Las estructuras están en `src/main/java/.../structures`.
+
+Si quieres, puedo:
+- Generar un diagrama sencillo de flujo (texto) de un préstamo y devolución.
+- Incluir ejemplos de payloads para cada endpoint.
+- Exportar este resumen en otro formato (README.md o PDF).
+
+Fin del documento.
