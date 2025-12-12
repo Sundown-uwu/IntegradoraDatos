@@ -11,11 +11,9 @@ import com.example.demo.service.integradora.structures.Node;
 @Service
 public class BookService {
 
-    // Estructura de almacenamiento propia 
     private MySinglyLinkedList<Book> catalog = new MySinglyLinkedList<>();
     private int idCounter = 1;
 
-    // registrar libro
     public Book registerBook(Book book) {
         book.id = idCounter++;
         book.active = true;
@@ -25,7 +23,6 @@ public class BookService {
         return book;
     }
 
-    // Buscar libro por id
     public Book findBookById(int id) {
         Node<Book> current = catalog.getHead();
         while (current != null) {
@@ -37,7 +34,6 @@ public class BookService {
         return null;
     }
 
-    //Consultar tdodos los libros activos
     public Book[] getAllActiveBooks() {
         int activeCount = 0;
         Node<Book> current = catalog.getHead();
@@ -48,7 +44,6 @@ public class BookService {
             current = current.next;
         }
 
-        // el array nativo del tamaño exacto
         Book[] resultArray = new Book[activeCount];
         
         //Llenar el array

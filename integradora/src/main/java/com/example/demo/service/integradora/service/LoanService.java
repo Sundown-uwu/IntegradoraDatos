@@ -21,7 +21,7 @@ public class LoanService {
     private int loanIdCounter = 1;
 
     // Historial de acciones (pila)
-    private CustomStack<HistoryAction> history = new CustomStack<>(200);
+    private CustomStack<HistoryAction> history = new CustomStack<>(10);
 
     public String requestLoan(Integer userId, Integer bookId) {
         if (userId == null || bookId == null) return "userId and bookId are required";
@@ -153,11 +153,16 @@ public class LoanService {
     }
 
     public String undoLastAction() {
-        HistoryAction action = history.pop();
+        HistoryAction action = history.peek();
         if (action == null) return "No hay acciones para deshacer.";
 
+        if (action.type != HistoryAction.ActionType.CREATE_LOAN && action.type != HistoryAction.ActionType.ADD_TO_WAITLIST) {
+            return "Solo se puede deshacer acciones CREATE_LOAN y ADD_TO_WAITLIST.";
+        }
+
+        action = history.pop();
         switch (action.type) {
-            case CREATE_LOAN, AUTO_CREATE_LOAN -> {
+            case CREATE_LOAN -> {
                 if (action.loanId == null) return "Acción inválida sin loanId.";
                 Loan loan = findLoanById(action.loanId);
                 if (loan == null) return "Préstamo no encontrado para deshacer.";
@@ -178,21 +183,6 @@ public class LoanService {
                 if (removed) return "Deshecho: usuario removido de lista de espera.";
                 else return "No se encontró la reserva para remover.";
             }
-            case RETURN -> {
-                if (action.loanId == null) return "Acción inválida sin loanId.";
-                Loan loan = findLoanById(action.loanId);
-                if (loan == null) return "Préstamo no encontrado para restaurar.";
-                if (!Boolean.TRUE.equals(loan.active)) {
-                    loan.active = true;
-                    Book book = bookService.findBookById(loan.bookId);
-                    if (book != null && book.availableCopies != null && book.availableCopies > 0) {
-                        book.availableCopies = book.availableCopies - 1;
-                    }
-                    return "Deshecho: préstamo restaurado (ID: " + loan.id + ").";
-                } else {
-                    return "El préstamo ya estaba activo.";
-                }
-            }
             default -> {
                 return "Tipo de acción no soportado para undo.";
             }
@@ -201,8 +191,19 @@ public class LoanService {
 
     public HistoryAction[] getHistory() {
         Object[] objs = history.toArray();
-        HistoryAction[] arr = new HistoryAction[objs.length];
-        for (int i = 0; i < objs.length; i++) arr[i] = (HistoryAction) objs[i];
+        int count = 0;
+        for (int i = 0; i < objs.length; i++) {
+            HistoryAction ha = (HistoryAction) objs[i];
+            if (ha.type == HistoryAction.ActionType.CREATE_LOAN || ha.type == HistoryAction.ActionType.ADD_TO_WAITLIST) count++;
+        }
+        HistoryAction[] arr = new HistoryAction[count];
+        int j = 0;
+        for (int i = 0; i < objs.length; i++) {
+            HistoryAction ha = (HistoryAction) objs[i];
+            if (ha.type == HistoryAction.ActionType.CREATE_LOAN || ha.type == HistoryAction.ActionType.ADD_TO_WAITLIST) {
+                arr[j++] = ha;
+            }
+        }
         return arr;
     }
 
